@@ -17,4 +17,5 @@ python-dotenv
 openai
 Pyjwt
 gunicorn
+psycopg2-binary
 
