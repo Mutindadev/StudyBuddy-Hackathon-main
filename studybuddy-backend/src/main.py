@@ -51,8 +51,8 @@ def create_app():
     # Enable CORS for all routes
     CORS(app,
      origins=[
-         "http://localhost:3000", 
-         "http://127.0.0.1:3000",
+        #  "http://localhost:3000", 
+        #  "http://127.0.0.1:3000",
          "https://study-buddy-hackathon-main.vercel.app"  # ✅ your Vercel frontend
      ],
      supports_credentials=True,
