@@ -49,12 +49,15 @@ def create_app():
         return response
 
     # Enable CORS for all routes
-    CORS(app, 
-         origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"], 
-         supports_credentials=True,
-         allow_headers=["Content-Type", "Authorization"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-
+    CORS(app,
+     origins=[
+         "http://localhost:3000", 
+         "http://127.0.0.1:3000",
+         "https://study-buddy-hackathon-main.vercel.app"  # ✅ your Vercel frontend
+     ],
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
     # Rate limiting
     limiter = Limiter(
         key_func=get_remote_address,
