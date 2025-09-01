@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app, g
+from flask import Blueprint, request, jsonify, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import jwt
@@ -30,7 +30,7 @@ def token_required(f):
         
         try:
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-            current_user = User.query.get(data['user_id'])
+            current_user = User.query.get(data.get('user_id'))
             if not current_user:
                 return jsonify({'error': 'Invalid token'}), 401
                 
@@ -61,7 +61,7 @@ def token_required(f):
 def register():
     """Register a new user"""
     try:
-        data = g.sanitized_json  # Use sanitized input
+        data = request.get_json()
 
         # Validate input fields
         username_validation = validate_username(data['username'])
@@ -107,7 +107,7 @@ def register():
             token = user.generate_token()
         except Exception as token_err:
             current_app.logger.error(f"Token generation failed: {str(token_err)}")
-            token = None
+            token = None  # fallback to None
 
         # Build user dict safely
         try:
@@ -144,7 +144,7 @@ def register():
 def login():
     """Login user"""
     try:
-        data = g.sanitized_json  # Use sanitized input
+        data = request.get_json()
 
         email = data['email'].strip().lower()
         password = data['password']
@@ -206,10 +206,25 @@ def login():
 @token_required
 def verify_token(current_user):
     """Verify if token is valid"""
+    if not current_user:
+        current_app.logger.error("verify_token: User not found for token")
+        return jsonify({'error': 'Invalid token'}), 401
+
+    try:
+        user_dict = current_user.to_dict()
+    except Exception as e:
+        current_app.logger.error(f"verify_token: user.to_dict() failed: {e}")
+        user_dict = {
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email
+        }
+
     return jsonify({
         'valid': True,
-        'user': current_user.to_dict()
+        'user': user_dict
     }), 200
+
 
 @auth_bp.route('/refresh-token', methods=['POST'])
 @token_required
@@ -225,6 +240,7 @@ def refresh_token(current_user):
         current_app.logger.error(f"Token refresh error: {e}")
         return jsonify({'error': 'Token refresh failed'}), 500
 
+
 @auth_bp.route('/change-password', methods=['POST'])
 @token_required
 @validate_json_input(
@@ -234,7 +250,7 @@ def refresh_token(current_user):
 def change_password(current_user):
     """Change user password"""
     try:
-        data = g.sanitized_json  # Use sanitized input
+        data = request.get_json()
         
         current_password = data['current_password']
         new_password = data['new_password']
@@ -264,6 +280,7 @@ def change_password(current_user):
         db.session.rollback()
         current_app.logger.error(f"Password change error: {e}")
         return jsonify({'error': 'Password change failed'}), 500
+
 
 @auth_bp.route('/logout', methods=['POST'])
 @token_required
