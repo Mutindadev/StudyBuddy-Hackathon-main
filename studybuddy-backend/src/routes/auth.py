@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import jwt
@@ -61,7 +61,7 @@ def token_required(f):
 def register():
     """Register a new user"""
     try:
-        data = request.get_json()
+        data = g.sanitized_json  # Use sanitized input
 
         # Validate input fields
         username_validation = validate_username(data['username'])
@@ -107,7 +107,7 @@ def register():
             token = user.generate_token()
         except Exception as token_err:
             current_app.logger.error(f"Token generation failed: {str(token_err)}")
-            token = None  # fallback to None
+            token = None
 
         # Build user dict safely
         try:
@@ -144,7 +144,7 @@ def register():
 def login():
     """Login user"""
     try:
-        data = request.get_json()
+        data = g.sanitized_json  # Use sanitized input
 
         email = data['email'].strip().lower()
         password = data['password']
@@ -234,7 +234,7 @@ def refresh_token(current_user):
 def change_password(current_user):
     """Change user password"""
     try:
-        data = request.get_json()
+        data = g.sanitized_json  # Use sanitized input
         
         current_password = data['current_password']
         new_password = data['new_password']
@@ -275,4 +275,3 @@ def logout(current_user):
     except Exception as e:
         current_app.logger.error(f"Logout error: {e}")
         return jsonify({'error': 'Logout failed'}), 500
-
