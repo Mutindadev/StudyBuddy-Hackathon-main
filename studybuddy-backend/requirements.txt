@@ -15,6 +15,6 @@ bleach
 PyPDF2
 python-dotenv
 openai
-PyJWT
-gunicorn==21.2.0
+Pyjwt
+gunicorn
 
