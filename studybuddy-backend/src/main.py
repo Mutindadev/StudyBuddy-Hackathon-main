@@ -2,21 +2,16 @@ import os
 import sys
 import logging
 from datetime import datetime
-# DON'T CHANGE THIS !!!
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-from flask import Flask, send_from_directory, jsonify, request, g
+from flask import Flask, send_from_directory, jsonify, request, g, current_app
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
 from src.extensions import db
 from src.models import (
-    User, StudyRoom, Document, 
-    StudyRoom, RoomMembership, StudySession,
+    User, StudyRoom, Document, RoomMembership, StudySession,
     AIConversation, AIMessage, Flashcard, PracticeTest,
-    Document, DocumentShare,
-    PaymentRecord, SubscriptionPlan, WebhookLog,
+    DocumentShare, PaymentRecord, SubscriptionPlan, WebhookLog,
     ProfileSettings, LMSIntegration, UserActivity,
     WhiteboardSession, WhiteboardHistory, RoomDocument, CollaborationEvent
 )
@@ -30,16 +25,19 @@ from src.routes.external_services import external_bp
 from src.routes.profile import profile_bp
 from src.routes.whiteboard import whiteboard_bp
 
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 def create_app():
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
-    
-    # Configuration
+
+    # ---------------- Configuration ----------------
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'studybuddy-secret-key-change-in-production')
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-    app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for API
+    app.config['WTF_CSRF_ENABLED'] = False
     app.config['JSON_SORT_KEYS'] = False
-    
-    # Security headers
+
+    # ---------------- Security Headers ----------------
     @app.after_request
     def after_request(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -48,17 +46,17 @@ def create_app():
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    # Enable CORS for all routes
+    # ---------------- CORS ----------------
     CORS(app,
-     origins=[
-        #  "http://localhost:3000", 
-        #  "http://127.0.0.1:3000",
-         "https://study-buddy-hackathon-main.vercel.app"  # ✅ your Vercel frontend
-     ],
-     supports_credentials=True,
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-    # Rate limiting
+         origins=[
+             "https://study-buddy-hackathon-main.vercel.app"
+         ],
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
+
+    # ---------------- Rate Limiter ----------------
     limiter = Limiter(
         key_func=get_remote_address,
         app=app,
@@ -66,7 +64,7 @@ def create_app():
         storage_uri="memory://"
     )
 
-    # Request logging middleware
+    # ---------------- Request Logging ----------------
     @app.before_request
     def log_request_info():
         g.start_time = datetime.utcnow()
@@ -80,66 +78,42 @@ def create_app():
             app.logger.info(f"Response: {response.status_code} - Duration: {duration:.3f}s")
         return response
 
-    # Error handlers
+    # ---------------- Error Handlers ----------------
     @app.errorhandler(400)
     def bad_request(error):
-        return jsonify({
-            'error': 'Bad Request',
-            'message': 'The request could not be understood by the server'
-        }), 400
+        return jsonify({'error': 'Bad Request', 'message': 'The request could not be understood by the server'}), 400
 
     @app.errorhandler(401)
     def unauthorized(error):
-        return jsonify({
-            'error': 'Unauthorized',
-            'message': 'Authentication required'
-        }), 401
+        return jsonify({'error': 'Unauthorized', 'message': 'Authentication required'}), 401
 
     @app.errorhandler(403)
     def forbidden(error):
-        return jsonify({
-            'error': 'Forbidden',
-            'message': 'Access denied'
-        }), 403
+        return jsonify({'error': 'Forbidden', 'message': 'Access denied'}), 403
 
     @app.errorhandler(404)
     def not_found(error):
-        return jsonify({
-            'error': 'Not Found',
-            'message': 'The requested resource was not found'
-        }), 404
+        return jsonify({'error': 'Not Found', 'message': 'The requested resource was not found'}), 404
 
     @app.errorhandler(413)
     def request_entity_too_large(error):
-        return jsonify({
-            'error': 'File Too Large',
-            'message': 'The uploaded file exceeds the maximum allowed size (50MB)'
-        }), 413
+        return jsonify({'error': 'File Too Large', 'message': 'The uploaded file exceeds the maximum allowed size (50MB)'}), 413
 
     @app.errorhandler(429)
     def ratelimit_handler(e):
-        return jsonify({
-            'error': 'Rate Limit Exceeded',
-            'message': 'Too many requests. Please try again later.'
-        }), 429
+        return jsonify({'error': 'Rate Limit Exceeded', 'message': 'Too many requests. Please try again later.'}), 429
 
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
         app.logger.error(f"Internal server error: {error}")
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': 'An unexpected error occurred'
-        }), 500
+        return jsonify({'error': 'Internal Server Error', 'message': 'An unexpected error occurred'}), 500
 
     @app.errorhandler(HTTPException)
     def handle_exception(e):
-        return jsonify({
-            'error': e.name,
-            'message': e.description
-        }), e.code
+        return jsonify({'error': e.name, 'message': e.description}), e.code
 
-    # Register blueprints
+    # ---------------- Blueprints ----------------
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_bp, url_prefix='/api')
     app.register_blueprint(room_bp, url_prefix='/api')
@@ -150,62 +124,47 @@ def create_app():
     app.register_blueprint(profile_bp, url_prefix='/api/profile')
     app.register_blueprint(whiteboard_bp, url_prefix='/api')
 
-     # Database configuration
+    # ---------------- Database ----------------
     database_dir = os.path.join(os.path.dirname(__file__), 'database')
     os.makedirs(database_dir, exist_ok=True)
     app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(database_dir, 'app.db')}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-    }
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 300}
     db.init_app(app)
 
-
-    # Create upload directory
+    # ---------------- Uploads ----------------
     upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
     os.makedirs(upload_dir, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_dir
 
-    # Initialize database
+    # ---------------- Initialize Database ----------------
     with app.app_context():
         db.create_all()
 
-    # Health check endpoint
+    # ---------------- Health Check ----------------
     @app.route('/api/health')
     def health_check():
         try:
-            # Test database connection
             from sqlalchemy import text
             db.session.execute(text('SELECT 1'))
-            return jsonify({
-                'status': 'healthy',
-                'timestamp': datetime.utcnow().isoformat(),
-                'version': '1.0.0'
-            })
+            return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat(), 'version': '1.0.0'})
         except Exception as e:
             app.logger.error(f"Health check failed: {e}")
-            return jsonify({
-                'status': 'unhealthy',
-                'error': str(e)
-            }), 500
+            return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
+    # ---------------- Catch-All Frontend Route ----------------
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
-        # Handle API requests that aren't matched by any blueprint
+        # Do not handle API routes here; let blueprints handle them
         if path.startswith('api/'):
-            return jsonify({'error': 'API route not found'}), 404
+            return current_app.handle_http_exception(404)
 
         static_folder_path = app.static_folder
-        if static_folder_path is None:
-            return "Static folder not configured", 404
-
         full_path = os.path.join(static_folder_path, path)
         if path != "" and os.path.exists(full_path):
             return send_from_directory(static_folder_path, path)
 
-        # Serve frontend index.html for all other routes
         index_path = os.path.join(static_folder_path, 'index.html')
         if os.path.exists(index_path):
             return send_from_directory(static_folder_path, 'index.html')
@@ -214,14 +173,9 @@ def create_app():
 
     return app
 
+# ---------------- Run App ----------------
 app = create_app()
 
 if __name__ == '__main__':
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s %(name)s %(message)s'
-    )
-    
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
     app.run(host='0.0.0.0', port=5000, debug=True)
-
