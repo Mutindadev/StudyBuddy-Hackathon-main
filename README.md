@@ -10,10 +10,11 @@
 # App Screenshots
 
 <p align="center">
-  <img src="Screenshots/AI Tutor.png" width="200"/>
-  <img src="Screenshots/Dashboard.png" width="200"/>
-  <img src="Screenshots/Documents.png" width="200"/>
-  <img src="Screenshots/StudyRooms.png" width="200"/>
+  <img src="Screenshots/Dashboard.png" width="250"/>
+  <img src="Screenshots/StudyRooms.png" width="250"/>
+  <img src="Screenshots/Documents.png" width="250"/>
+  <img src="Screenshots/AI Tutor.png" width="250"/>
+  
 </p>
 
 ## 👥 Group Members
