@@ -5,7 +5,9 @@ const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
   return context;
 };
 
@@ -16,18 +18,9 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Helper for API calls (robust: normalizes urls, handles 401, JSON vs non-JSON, 204)
+  // Helper for API calls
   const apiCall = async (endpoint, options = {}) => {
-    // Normalize base URL (remove trailing slash)
-    const base = (API_BASE_URL || "").replace(/\/+$/, "");
-
-    // Normalize endpoint to always start with a single leading slash
-    let ep = String(endpoint || "");
-    if (!ep.startsWith("/")) ep = "/" + ep;
-
-    // Final URL: if no base provided, use endpoint as absolute path
-    const url = base ? `${base}${ep}` : ep;
-
+    const url = `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
         "Content-Type": "application/json",
@@ -39,46 +32,20 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const response = await fetch(url, config);
+      const data = await response.json();
 
-      // 401: invalid/expired token -> clear auth and throw
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        setToken(null);
-        setUser(null);
-        throw new Error("Invalid token. Please log in again.");
+      if (!response.ok) {
+        throw new Error(data.error || "An error occurred");
       }
 
-      // 204 No Content -> return null (caller should handle)
-      if (response.status === 204) return null;
-
-      // Check content-type to decide how to parse
-      const contentType = (
-        response.headers.get("content-type") || ""
-      ).toLowerCase();
-
-      if (contentType.includes("application/json")) {
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(
-            data?.error || `HTTP error! status: ${response.status}`
-          );
-        }
-        return data;
-      } else {
-        // Non-JSON response: read text and surface useful message or return text on OK
-        const text = await response.text();
-        if (!response.ok) {
-          throw new Error(text || `HTTP error! status: ${response.status}`);
-        }
-        return text;
-      }
+      return data;
     } catch (error) {
       console.error("API call failed:", error);
       throw error;
     }
   };
 
-  // Verify token on load
+  // Verify token on initial load
   useEffect(() => {
     const verifyToken = async () => {
       if (!token) {
@@ -87,49 +54,40 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const data = await apiCall("/api/auth/verify-token", {
-          method: "POST",
-        });
-
-        if (!data?.user) {
-          // invalid or empty response -> clear auth
-          localStorage.removeItem("token");
-          setToken(null);
-          setUser(null);
-          throw new Error("Please log in again.");
-        }
-
+        const data = await apiCall("/auth/verify-token", { method: "POST" });
+        // Ensure user is an object
         const verifiedUser = Array.isArray(data.user)
           ? data.user[0]
           : data.user;
         setUser(verifiedUser);
       } catch (error) {
         console.error("Token verification failed:", error);
-        // Ensure invalid token is removed and state cleared
         localStorage.removeItem("token");
         setToken(null);
-        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
     verifyToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Login function
   const login = async (email, password) => {
     try {
-      const data = await apiCall("/api/auth/login", {
+      const data = await apiCall("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
-      const loggedInUser = Array.isArray(data?.user) ? data.user[0] : data.user;
+      // Ensure user is an object
+      const loggedInUser = Array.isArray(data.user) ? data.user[0] : data.user;
+
       setToken(data.token);
       setUser(loggedInUser);
       localStorage.setItem("token", data.token);
       toast.success("Login successful!");
+
       return { success: true };
     } catch (error) {
       toast.error(error.message);
@@ -137,18 +95,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Register function
   const register = async (userData) => {
     try {
-      const data = await apiCall("/api/auth/register", {
+      const data = await apiCall("/auth/register", {
         method: "POST",
         body: JSON.stringify(userData),
       });
 
-      const newUser = Array.isArray(data?.user) ? data.user[0] : data.user;
+      // Ensure user is an object
+      const newUser = Array.isArray(data.user) ? data.user[0] : data.user;
+
       setToken(data.token);
       setUser(newUser);
       localStorage.setItem("token", data.token);
       toast.success("Registration successful!");
+
       return { success: true };
     } catch (error) {
       toast.error(error.message);
@@ -156,6 +118,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logout function
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -163,6 +126,7 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out successfully");
   };
 
+  // Update user object
   const updateUser = (userData) => {
     setUser((prev) => ({ ...prev, ...userData }));
   };
