@@ -1,21 +1,33 @@
 # StudyBuddy Enhanced - Production-Ready Version 2.0
 
-![StudyBuddy Logo](studybuddy_logo.png)
+![StudyBuddyLogo](studybuddy_logo.png)
 ![Version](https://img.shields.io/badge/Version-2.0.0-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge)
 
+## ScreenShots
+
+# App Screenshots
+
+<p align="center">
+  <img src="Screenshots/AI Tutor.png" width="200"/>
+  <img src="Screenshots/Dashboard.png" width="200"/>
+  <img src="Screenshots/Documents.png" width="200"/>
+  <img src="Screenshots/StudyRooms.png" width="200"/>
+</p>
+
 ## 👥 Group Members
 
-1. *Rachael Kiarie* – [raychellekiarie756@gmail.com](mailto:raychellekiarie756@gmail.com)  
-2. *Clarence Mabeya* – [cmabeya3@gmail.com](mailto:cmabeya3@gmail.com)  
-3. *Regina Mutinda* – [rmmutinda02@gmail.com](mailto:rmmutinda02@gmail.com)
+1. _Rachael Kiarie_ – [raychellekiarie756@gmail.com](mailto:raychellekiarie756@gmail.com) <br>
+2. _Clarence Mabeya_ – [cmabeya3@gmail.com](mailto:cmabeya3@gmail.com) <br>
+3. _Regina Mutinda_ – [rmmutinda02@gmail.com](mailto:rmmutinda02@gmail.com)<br>
 
 ## 🚀 Major Enhancements & Fixes
 
 This enhanced version of StudyBuddy addresses all critical issues and adds production-ready features:
 
 ### ✅ **Fixed Critical Issues**
+
 - ✅ **Document Display & Reading**: Fixed document viewing and flipbook functionality
 - ✅ **Flipbook Creation**: Resolved "missing token" error and implemented proper authentication
 - ✅ **Dynamic AI Tutor**: Added support for multiple AI models (GPT-3.5, GPT-4, Claude)
@@ -24,6 +36,7 @@ This enhanced version of StudyBuddy addresses all critical issues and adds produ
 - ✅ **Frontend-Backend Communication**: Seamless API communication with proper error handling
 
 ### 🆕 **New Production Features**
+
 - 🔒 **Enterprise Security**: Rate limiting, input validation, security headers
 - 📱 **Responsive Design**: Mobile-first approach with touch support
 - 🎯 **Dynamic Dashboard**: Real-time stats, achievements, and subscription status
@@ -34,6 +47,7 @@ This enhanced version of StudyBuddy addresses all critical issues and adds produ
 ## 🛠 Enhanced Tech Stack
 
 ### Backend Improvements
+
 - **Flask 3.1.1** with production-ready configuration
 - **Flask-Limiter 3.5.0** for rate limiting
 - **Enhanced Security** with Bleach sanitization and validation
@@ -42,6 +56,7 @@ This enhanced version of StudyBuddy addresses all critical issues and adds produ
 - **OpenAI 1.102.0** with multi-model support
 
 ### Frontend Enhancements
+
 - **React 18** with modern hooks and context
 - **Responsive Design** with CSS Grid and Flexbox
 - **Dynamic Components** with real-time updates
@@ -51,11 +66,13 @@ This enhanced version of StudyBuddy addresses all critical issues and adds produ
 ## 🔧 Quick Start Guide
 
 ### Prerequisites
+
 - Python 3.11+
 - Node.js 18+
 - Git
 
 ### 1. Backend Setup
+
 ```bash
 cd studybuddy-backend
 
@@ -73,6 +90,7 @@ python src/main.py
 ```
 
 ### 2. Frontend Setup
+
 ```bash
 cd studybuddy-frontend
 
@@ -84,6 +102,7 @@ npm start
 ```
 
 ### 3. Access Application
+
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
 - Health Check: http://localhost:5000/api/health
@@ -91,6 +110,7 @@ npm start
 ## 📋 API Documentation - Enhanced Endpoints
 
 ### Authentication (Enhanced)
+
 ```bash
 # Register with validation
 POST /api/auth/register
@@ -115,6 +135,7 @@ Headers: Authorization: Bearer <token>
 ```
 
 ### AI Tutor (Multi-Model Support)
+
 ```bash
 # Get available models
 GET /api/ai/models
@@ -135,6 +156,7 @@ POST /api/ai/conversations/{id}/messages
 ```
 
 ### Documents (Fixed)
+
 ```bash
 # Upload document
 POST /api/documents/upload
@@ -148,6 +170,7 @@ GET /api/documents/{id}/download
 ```
 
 ### Payments (IntaSend Integration)
+
 ```bash
 # Get subscription plans
 GET /api/payment/plans
@@ -166,12 +189,14 @@ POST /api/payment/webhook
 ## 🔒 Security Features
 
 ### Input Validation
+
 - **Comprehensive Sanitization**: HTML sanitization with Bleach
 - **Schema Validation**: JSON input validation with custom decorators
 - **File Upload Security**: Type and size validation for uploads
 - **SQL Injection Prevention**: Parameterized queries only
 
 ### Rate Limiting
+
 ```python
 # Global limits
 1000 requests per hour (default)
@@ -183,6 +208,7 @@ POST /api/payment/webhook
 ```
 
 ### Security Headers
+
 ```http
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -193,6 +219,7 @@ Strict-Transport-Security: max-age=31536000
 ## 📱 Frontend Enhancements
 
 ### Dynamic Dashboard
+
 - Real-time user statistics
 - Subscription status display
 - Achievement tracking system
@@ -200,6 +227,7 @@ Strict-Transport-Security: max-age=31536000
 - Responsive grid layout
 
 ### AI Tutor Interface
+
 - Model selection dropdown
 - Conversation management
 - Message history
@@ -207,6 +235,7 @@ Strict-Transport-Security: max-age=31536000
 - Error handling
 
 ### Document Management
+
 - Fixed flipbook viewing
 - Proper download links
 - Upload progress indicators
@@ -215,6 +244,7 @@ Strict-Transport-Security: max-age=31536000
 ## 💳 Payment System (IntaSend)
 
 ### Features
+
 - M-Pesa integration
 - Card payments
 - Webhook notifications
@@ -222,6 +252,7 @@ Strict-Transport-Security: max-age=31536000
 - Payment history
 
 ### Configuration
+
 ```env
 INTASEND_PUBLISHABLE_KEY=ISPubKey_test_...
 INTASEND_SECRET_KEY=ISSecretKey_test_...
@@ -229,6 +260,7 @@ INTASEND_TEST_MODE=true
 ```
 
 ### Webhook Setup
+
 ```bash
 # Webhook URL
 https://yourdomain.com/api/payment/webhook
@@ -243,6 +275,7 @@ https://yourdomain.com/api/payment/webhook
 ## 🧪 Testing
 
 ### Backend Testing
+
 ```bash
 # Run comprehensive API tests
 python test_backend.py
@@ -255,6 +288,7 @@ curl http://localhost:5000/api/health
 ```
 
 ### Test Results
+
 ```
 ✅ Health Check: PASSED
 ✅ User Registration: PASSED
@@ -268,6 +302,7 @@ curl http://localhost:5000/api/health
 ## 🚀 Deployment Guide
 
 ### Production Checklist
+
 - [ ] Set strong SECRET_KEY
 - [ ] Configure PostgreSQL database
 - [ ] Set up SSL certificates
@@ -278,6 +313,7 @@ curl http://localhost:5000/api/health
 - [ ] Verify security headers
 
 ### Environment Variables
+
 ```env
 # Production
 SECRET_KEY=strong-random-key
@@ -290,6 +326,7 @@ FLASK_ENV=production
 ```
 
 ### Docker Deployment
+
 ```dockerfile
 # Dockerfile included for containerized deployment
 docker-compose up --build
@@ -298,6 +335,7 @@ docker-compose up --build
 ## 📊 Performance Improvements
 
 ### Backend Optimizations
+
 - Connection pooling for database
 - Request/response logging
 - Error handling middleware
@@ -305,6 +343,7 @@ docker-compose up --build
 - Caching strategies
 
 ### Frontend Optimizations
+
 - Code splitting
 - Lazy loading
 - Optimized bundle size
@@ -314,6 +353,7 @@ docker-compose up --build
 ## 🐛 Known Issues & Solutions
 
 ### Resolved Issues
+
 - ✅ Document display fixed
 - ✅ Flipbook authentication resolved
 - ✅ Payment creation errors fixed
@@ -321,6 +361,7 @@ docker-compose up --build
 - ✅ AI tutor model selection added
 
 ### Minor Outstanding Issues
+
 - Token verification endpoint needs minor adjustment
 - Large file upload timeout (chunked upload recommended)
 - Real-time features need WebSocket implementation
@@ -328,12 +369,14 @@ docker-compose up --build
 ## 📈 Monitoring & Analytics
 
 ### Logging
+
 - Request/response logging
 - Error tracking
 - Performance monitoring
 - Security event logging
 
 ### Metrics
+
 - API response times
 - User engagement
 - Payment success rates
@@ -342,6 +385,7 @@ docker-compose up --build
 ## 🤝 Contributing
 
 ### Development Setup
+
 1. Fork repository
 2. Create feature branch
 3. Follow coding standards
@@ -350,6 +394,7 @@ docker-compose up --build
 6. Submit pull request
 
 ### Code Quality
+
 - ESLint for JavaScript
 - Black for Python
 - Comprehensive testing
@@ -366,12 +411,14 @@ docker-compose up --build
 ## 🆘 Support
 
 ### Getting Help
+
 - GitHub Issues for bugs
 - Email: support@studybuddy.com
 - Documentation: Complete inline documentation
 - Community: Discord server (coming soon)
 
 ### Professional Support
+
 - Priority support for production deployments
 - Custom integrations available
 - Training and onboarding services
@@ -382,7 +429,6 @@ docker-compose up --build
 **Release Date**: August 31, 2025  
 **Status**: Production Ready ✅  
 **Tested**: Comprehensive testing completed  
-**Security**: Enterprise-grade security implemented  
+**Security**: Enterprise-grade security implemented
 
 **🎉 Ready for deployment and production use!**
-
