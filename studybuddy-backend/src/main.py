@@ -6,6 +6,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
+from werkzeug.routing import MapAdapter
 
 from src.models.user import db
 from src.routes.user import user_bp
@@ -135,21 +136,24 @@ def create_app():
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
-        # 1️⃣ Let Flask handle any registered route first
-        if path and any(path == rule.rule.lstrip('/') for rule in app.url_map.iter_rules()):
+        # Check if the requested path matches any Flask route
+        adapter: MapAdapter = app.url_map.bind_to_environ(request.environ)
+        try:
+            endpoint, args = adapter.match('/' + path)
             return app.full_dispatch_request()
+        except Exception:
+            pass  # No match, continue to static/SPA handling
 
-        # 2️⃣ Serve static files
+        # Serve static files
         full_path = os.path.join(app.static_folder, path)
         if path and os.path.exists(full_path):
             return send_from_directory(app.static_folder, path)
 
-        # 3️⃣ SPA fallback (index.html)
+        # SPA fallback (index.html)
         index_path = os.path.join(app.static_folder, 'index.html')
         if os.path.exists(index_path):
             return send_from_directory(app.static_folder, 'index.html')
 
-        # 4️⃣ Catch-all if nothing found
         return jsonify({'error': 'Frontend not found'}), 404
     
     return app

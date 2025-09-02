@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem("token");
           setToken(null);
           setUser(null);
-          throw new Error("Invalid token. Please log in again.");
+          throw new Error("Please log in again.");
         }
 
         const verifiedUser = Array.isArray(data.user)
