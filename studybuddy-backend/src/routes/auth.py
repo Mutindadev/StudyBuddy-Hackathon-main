@@ -36,7 +36,7 @@ def token_required(f):
         except jwt.ExpiredSignatureError:
             return jsonify({'error': 'Token has expired'}), 401
         except jwt.InvalidTokenError:
-            return jsonify({'error': 'Invalid token'}), 401
+            return jsonify({'error': 'Invalid token Its me'}), 401
         except Exception as e:
             current_app.logger.error(f"Token validation error: {e}")
             return jsonify({'error': 'Token validation failed'}), 401
