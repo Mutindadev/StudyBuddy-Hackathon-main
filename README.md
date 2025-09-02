@@ -83,7 +83,7 @@ npm start
 ```
 
 ### 3. Access Application
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
 - Health Check: http://localhost:5000/api/health
 
