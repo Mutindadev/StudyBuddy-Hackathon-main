@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 from datetime import datetime
 from flask import Flask, send_from_directory, jsonify, request, g
@@ -21,65 +20,60 @@ from src.routes.whiteboard import whiteboard_bp
 def create_app():
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
-    # Configuration
+    # Config
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'studybuddy-secret-key-change-in-production')
-    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-    app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for API
+    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+    app.config['WTF_CSRF_ENABLED'] = False
     app.config['JSON_SORT_KEYS'] = False
     app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db.init_app(app)
 
-    # Ensure database folder exists
+    # Initialize database
+    db.init_app(app)
     os.makedirs(os.path.join(os.path.dirname(__file__), 'database'), exist_ok=True)
     os.makedirs(os.path.join(os.path.dirname(__file__), 'uploads'), exist_ok=True)
 
-    # Initialize tables
     with app.app_context():
         db.create_all()
 
     # Security headers
     @app.after_request
-    def after_request(response):
+    def add_security_headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    # Enable CORS for frontend
+    # CORS
     CORS(app,
          origins=["https://study-buddy-hackathon-main.vercel.app"],
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-    # Handle preflight OPTIONS requests globally
-    @app.before_request
-    def handle_options_requests():
-        if request.method == 'OPTIONS':
-            response = app.make_response('')
-            response.status_code = 200
-            return response
-
-    # Rate limiting
+    # Rate limiter
     Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
 
-    # Request logging middleware
+    # Request logging
     @app.before_request
-    def log_request_info():
+    def log_request():
         g.start_time = datetime.utcnow()
         if request.endpoint:
             app.logger.info(f"{request.method} {request.path} - {request.remote_addr}")
 
     @app.after_request
-    def log_response_info(response):
+    def log_response(response):
         if hasattr(g, 'start_time'):
             duration = (datetime.utcnow() - g.start_time).total_seconds()
             app.logger.info(f"Response: {response.status_code} - Duration: {duration:.3f}s")
         return response
 
     # Error handlers
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        return jsonify({'error': e.name, 'message': e.description}), e.code
+
     @app.errorhandler(400)
     def bad_request(error):
         return jsonify({'error': 'Bad Request', 'message': 'The request could not be understood by the server'}), 400
@@ -97,22 +91,18 @@ def create_app():
         return jsonify({'error': 'Not Found', 'message': 'The requested resource was not found'}), 404
 
     @app.errorhandler(413)
-    def request_entity_too_large(error):
-        return jsonify({'error': 'File Too Large', 'message': 'The uploaded file exceeds the maximum allowed size (50MB)'}), 413
+    def file_too_large(error):
+        return jsonify({'error': 'File Too Large', 'message': 'The uploaded file exceeds 50MB'}), 413
 
     @app.errorhandler(429)
-    def ratelimit_handler(e):
+    def rate_limit_exceeded(e):
         return jsonify({'error': 'Rate Limit Exceeded', 'message': 'Too many requests. Please try again later.'}), 429
 
     @app.errorhandler(500)
-    def internal_error(error):
+    def internal_server_error(error):
         db.session.rollback()
         app.logger.error(f"Internal server error: {error}")
         return jsonify({'error': 'Internal Server Error', 'message': 'An unexpected error occurred'}), 500
-
-    @app.errorhandler(HTTPException)
-    def handle_exception(e):
-        return jsonify({'error': e.name, 'message': e.description}), e.code
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -127,7 +117,7 @@ def create_app():
 
     # Health check
     @app.route('/api/health')
-    def health_check():
+    def health():
         try:
             from sqlalchemy import text
             db.session.execute(text('SELECT 1'))
@@ -136,25 +126,25 @@ def create_app():
             app.logger.error(f"Health check failed: {e}")
             return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
-    # Serve frontend static files
+    # Serve frontend
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
         if path.startswith('api/'):
             return jsonify({'error': 'API route not found'}), 404
 
-        static_folder = app.static_folder
-        full_path = os.path.join(static_folder, path)
-        if path != "" and os.path.exists(full_path):
-            return send_from_directory(static_folder, path)
+        full_path = os.path.join(app.static_folder, path)
+        if path and os.path.exists(full_path):
+            return send_from_directory(app.static_folder, path)
 
-        index_path = os.path.join(static_folder, 'index.html')
+        index_path = os.path.join(app.static_folder, 'index.html')
         if os.path.exists(index_path):
-            return send_from_directory(static_folder, 'index.html')
+            return send_from_directory(app.static_folder, 'index.html')
 
         return "index.html not found", 404
 
     return app
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
