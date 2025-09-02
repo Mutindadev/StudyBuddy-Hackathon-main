@@ -5,6 +5,12 @@
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge)
 
+## 👥 Group Members
+
+1. *Rachael Kiarie* – [raychellekiarie756@gmail.com](mailto:raychellekiarie756@gmail.com)  
+2. *Clarence Mabeya* – [cmabeya3@gmail.com](mailto:cmabeya3@gmail.com)  
+3. *Regina Mutinda* – [rmmutinda02@gmail.com](mailto:rmmutinda02@gmail.com)
+
 ## 🚀 Major Enhancements & Fixes
 
 This enhanced version of StudyBuddy addresses all critical issues and adds production-ready features:
