@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Helper for API calls
+  // Unified API call helper
   const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -32,7 +32,16 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+
+      // Handle non-JSON responses
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(text || "Invalid response from server");
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "An error occurred");
@@ -45,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Verify token on initial load
+  // Verify token on load
   useEffect(() => {
     const verifyToken = async () => {
       if (!token) {
@@ -57,15 +66,18 @@ export const AuthProvider = ({ children }) => {
         const data = await apiCall("/api/auth/verify-token", {
           method: "POST",
         });
+
         // Ensure user is an object
         const verifiedUser = Array.isArray(data.user)
           ? data.user[0]
           : data.user;
+
         setUser(verifiedUser);
       } catch (error) {
         console.error("Token verification failed:", error);
         localStorage.removeItem("token");
         setToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -74,7 +86,7 @@ export const AuthProvider = ({ children }) => {
     verifyToken();
   }, [token]);
 
-  // Login function
+  // Login
   const login = async (email, password) => {
     try {
       const data = await apiCall("/api/auth/login", {
@@ -82,14 +94,11 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
-      // Ensure user is an object
       const loggedInUser = Array.isArray(data.user) ? data.user[0] : data.user;
-
       setToken(data.token);
       setUser(loggedInUser);
       localStorage.setItem("token", data.token);
       toast.success("Login successful!");
-
       return { success: true };
     } catch (error) {
       toast.error(error.message);
@@ -97,7 +106,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Register function
+  // Register
   const register = async (userData) => {
     try {
       const data = await apiCall("/api/auth/register", {
@@ -105,14 +114,11 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      // Ensure user is an object
       const newUser = Array.isArray(data.user) ? data.user[0] : data.user;
-
       setToken(data.token);
       setUser(newUser);
       localStorage.setItem("token", data.token);
       toast.success("Registration successful!");
-
       return { success: true };
     } catch (error) {
       toast.error(error.message);
@@ -120,7 +126,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout function
+  // Logout
   const logout = () => {
     setToken(null);
     setUser(null);
