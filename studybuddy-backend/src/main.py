@@ -6,6 +6,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
+
 from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
@@ -20,7 +21,7 @@ from src.routes.whiteboard import whiteboard_bp
 def create_app():
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
-    # Config
+    # Configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'studybuddy-secret-key-change-in-production')
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
     app.config['WTF_CSRF_ENABLED'] = False
@@ -45,26 +46,15 @@ def create_app():
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    # CORS
+    # CORS (fixed origins)
     CORS(app,
-         origins=["https://study-buddy-hackathon-main.vercel.app"
-                  "https://studybuddy-hackathon-main-production.up.railway.app"],
+         origins=[
+             "https://study-buddy-hackathon-main.vercel.app",
+             "https://studybuddy-hackathon-main-production.up.railway.app"
+         ],
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-
-    # At the top after initializing CORS
-    @app.before_request
-    def handle_options_requests():
-        if request.method == 'OPTIONS':
-            resp = app.make_default_options_response()
-            headers = resp.headers
-
-            headers['Access-Control-Allow-Origin'] = 'https://study-buddy-hackathon-main.vercel.app'
-            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-            headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-            headers['Access-Control-Allow-Credentials'] = 'true'
-            return resp
 
     # Rate limiter
     Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
@@ -155,7 +145,7 @@ def create_app():
         if os.path.exists(index_path):
             return send_from_directory(app.static_folder, 'index.html')
 
-        return "index.html not found", 404
+        return jsonify({'error': 'Frontend not found'}), 404
 
     return app
 
