@@ -151,6 +151,8 @@ def create_app():
 
         # 4️⃣ Catch-all if nothing found
         return jsonify({'error': 'Frontend not found'}), 404
+    
+    return app
 
 
 # Ensure module-level app for Gunicorn
