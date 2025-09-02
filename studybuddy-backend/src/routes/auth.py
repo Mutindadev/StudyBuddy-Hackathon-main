@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import jwt
@@ -11,32 +11,31 @@ from src.utils.validation import (
 
 auth_bp = Blueprint('auth', __name__)
 
+# ----------------------------
+# Token Decorator
+# ----------------------------
 def token_required(f):
-    """Decorator to require valid JWT token safely"""
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
         auth_header = request.headers.get('Authorization')
-        
+
         if auth_header:
-            parts = auth_header.split(" ")
-            if len(parts) == 2 and parts[0].lower() == "bearer":
-                token = parts[1]
-        
+            try:
+                token = auth_header.split(" ")[1]  # Bearer <token>
+            except IndexError:
+                return jsonify({'error': 'Invalid token format'}), 401
+
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
 
         try:
-            payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-            user_id = payload.get('user_id')
-            if not user_id:
-                return jsonify({'error': 'Invalid token payload'}), 401
-
-            current_user = User.query.get(user_id)
+            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user = User.query.get(data.get('user_id'))
             if not current_user:
                 return jsonify({'error': 'Invalid token'}), 401
 
-            # Check if account is locked
+            # Account lock check
             if hasattr(current_user, 'is_account_locked') and current_user.is_account_locked():
                 return jsonify({
                     'error': 'Account temporarily locked',
@@ -49,13 +48,16 @@ def token_required(f):
             return jsonify({'error': 'Invalid token'}), 401
         except Exception as e:
             current_app.logger.error(f"Token validation error: {e}")
+            db.session.rollback()
             return jsonify({'error': 'Token validation failed'}), 401
 
         return f(current_user, *args, **kwargs)
 
     return decorated
 
-# --- User Registration ---
+# ----------------------------
+# Register
+# ----------------------------
 @auth_bp.route('/register', methods=['POST'])
 @validate_json_input(
     required_fields=['username', 'email', 'password', 'first_name', 'last_name'],
@@ -63,21 +65,29 @@ def token_required(f):
 )
 def register():
     try:
-        data = request.get_json()
+        data = g.get('sanitized_json', {})
 
-        # Validate input
-        if not validate_username(data['username'])['valid']:
-            return jsonify({'error': 'Invalid username'}), 400
+        # Field validation
+        username_validation = validate_username(data['username'])
+        if not username_validation['valid']:
+            return jsonify({'error': username_validation['message']}), 400
+
         if not validate_email(data['email']):
-            return jsonify({'error': 'Invalid email'}), 400
-        if not validate_password(data['password'])['valid']:
-            return jsonify({'error': 'Invalid password'}), 400
-        if not validate_name(data['first_name'], 'First name')['valid']:
-            return jsonify({'error': 'Invalid first name'}), 400
-        if not validate_name(data['last_name'], 'Last name')['valid']:
-            return jsonify({'error': 'Invalid last name'}), 400
+            return jsonify({'error': 'Invalid email format'}), 400
 
-        # Check uniqueness
+        password_validation = validate_password(data['password'])
+        if not password_validation['valid']:
+            return jsonify({'error': password_validation['message']}), 400
+
+        first_name_validation = validate_name(data['first_name'], 'First name')
+        if not first_name_validation['valid']:
+            return jsonify({'error': first_name_validation['message']}), 400
+
+        last_name_validation = validate_name(data['last_name'], 'Last name')
+        if not last_name_validation['valid']:
+            return jsonify({'error': last_name_validation['message']}), 400
+
+        # Unique user checks
         if User.query.filter_by(email=data['email'].lower().strip()).first():
             return jsonify({'error': 'Email already registered'}), 409
         if User.query.filter_by(username=data['username']).first():
@@ -95,17 +105,16 @@ def register():
         db.session.commit()
 
         # Generate token
+        token = None
         try:
             token = user.generate_token()
-        except Exception as e:
-            current_app.logger.error(f"Token generation failed: {e}")
-            token = None
+        except Exception as token_err:
+            current_app.logger.error(f"Token generation failed: {token_err}")
 
-        # Safe user dict
+        # User dict
         try:
             user_dict = user.to_dict()
-        except Exception as e:
-            current_app.logger.error(f"user.to_dict() failed: {e}")
+        except Exception:
             user_dict = {
                 "id": user.id,
                 "username": user.username,
@@ -114,62 +123,86 @@ def register():
                 "last_name": user.last_name
             }
 
+        current_app.logger.info(f"New user registered: {user.username} ({user.email})")
         return jsonify({'message': 'User registered successfully', 'token': token, 'user': user_dict}), 201
 
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Registration failed: {e}")
-        return jsonify({'error': 'Registration failed'}), 500
+        return jsonify({'error': 'Registration failed', 'message': str(e)}), 500
 
-# --- User Login ---
+# ----------------------------
+# Login
+# ----------------------------
 @auth_bp.route('/login', methods=['POST'])
-@validate_json_input(required_fields=['email', 'password'])
+@validate_json_input(
+    required_fields=['email', 'password'],
+    optional_fields=[]
+)
 def login():
     try:
-        data = request.get_json()
+        data = g.get('sanitized_json', {})
         email = data['email'].strip().lower()
         password = data['password']
 
         user = User.query.filter_by(email=email).first()
-        if not user or not user.check_password(password):
+        if not user:
+            return jsonify({'error': 'Invalid email or password'}), 401
+
+        if hasattr(user, "is_account_locked") and user.is_account_locked():
+            return jsonify({'error': 'Account temporarily locked'}), 423
+
+        if not user.check_password(password):
+            if hasattr(user, "increment_failed_login"):
+                user.increment_failed_login()
             return jsonify({'error': 'Invalid email or password'}), 401
 
         if hasattr(user, "reset_failed_login"):
             user.reset_failed_login()
-
         if hasattr(user, "update_streak"):
             user.update_streak()
 
         token = None
         try:
             token = user.generate_token()
-        except Exception as e:
-            current_app.logger.error(f"Token generation failed: {e}")
+        except Exception as token_err:
+            current_app.logger.error(f"Token generation failed: {token_err}")
 
         try:
             user_dict = user.to_dict()
-        except Exception as e:
-            current_app.logger.error(f"user.to_dict() failed: {e}")
-            user_dict = {"id": user.id, "username": user.username, "email": user.email,
-                         "first_name": user.first_name, "last_name": user.last_name}
+        except Exception:
+            user_dict = {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name
+            }
 
+        current_app.logger.info(f"User logged in: {user.username}")
         return jsonify({'message': 'Login successful', 'token': token, 'user': user_dict}), 200
 
     except Exception as e:
-        current_app.logger.error(f"Login failed: {e}")
-        return jsonify({'error': 'Login failed'}), 500
+        db.session.rollback()
+        current_app.logger.error(f"Login error: {e}")
+        return jsonify({'error': 'Login failed', 'message': str(e)}), 500
 
-# --- Verify Token ---
+# ----------------------------
+# Verify Token
+# ----------------------------
 @auth_bp.route('/verify-token', methods=['POST'])
 @token_required
 def verify_token(current_user):
     try:
         return jsonify({'valid': True, 'user': current_user.to_dict()}), 200
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Verify token failed: {e}")
-        return jsonify({'error': 'Token verification failed'}), 500
+        return jsonify({'error': 'Token verification failed', 'message': str(e)}), 500
 
-# --- Refresh Token ---
+# ----------------------------
+# Refresh Token
+# ----------------------------
 @auth_bp.route('/refresh-token', methods=['POST'])
 @token_required
 def refresh_token(current_user):
@@ -177,16 +210,22 @@ def refresh_token(current_user):
         new_token = current_user.generate_token()
         return jsonify({'token': new_token, 'user': current_user.to_dict()}), 200
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Token refresh failed: {e}")
-        return jsonify({'error': 'Token refresh failed'}), 500
+        return jsonify({'error': 'Token refresh failed', 'message': str(e)}), 500
 
-# --- Change Password ---
+# ----------------------------
+# Change Password
+# ----------------------------
 @auth_bp.route('/change-password', methods=['POST'])
 @token_required
-@validate_json_input(required_fields=['current_password', 'new_password'])
+@validate_json_input(
+    required_fields=['current_password', 'new_password'],
+    optional_fields=[]
+)
 def change_password(current_user):
     try:
-        data = request.get_json()
+        data = g.get('sanitized_json', {})
         current_password = data['current_password']
         new_password = data['new_password']
 
@@ -202,19 +241,24 @@ def change_password(current_user):
 
         current_user.set_password(new_password)
         db.session.commit()
-
+        current_app.logger.info(f"Password changed for user: {current_user.username}")
         return jsonify({'message': 'Password changed successfully'}), 200
+
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Password change failed: {e}")
-        return jsonify({'error': 'Password change failed'}), 500
+        current_app.logger.error(f"Change password failed: {e}")
+        return jsonify({'error': 'Password change failed', 'message': str(e)}), 500
 
-# --- Logout ---
+# ----------------------------
+# Logout
+# ----------------------------
 @auth_bp.route('/logout', methods=['POST'])
 @token_required
 def logout(current_user):
     try:
+        current_app.logger.info(f"User logged out: {current_user.username}")
         return jsonify({'message': 'Logged out successfully'}), 200
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Logout failed: {e}")
-        return jsonify({'error': 'Logout failed'}), 500
+        return jsonify({'error': 'Logout failed', 'message': str(e)}), 500

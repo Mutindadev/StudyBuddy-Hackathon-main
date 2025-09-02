@@ -2,19 +2,12 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, send_from_directory, jsonify, request, g, current_app
+from flask import Flask, send_from_directory, jsonify, request, g
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
-from src.extensions import db
-from src.models import (
-    User, StudyRoom, Document, RoomMembership, StudySession,
-    AIConversation, AIMessage, Flashcard, PracticeTest,
-    DocumentShare, PaymentRecord, SubscriptionPlan, WebhookLog,
-    ProfileSettings, LMSIntegration, UserActivity,
-    WhiteboardSession, WhiteboardHistory, RoomDocument, CollaborationEvent
-)
+from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
 from src.routes.study_room import room_bp
@@ -25,19 +18,27 @@ from src.routes.external_services import external_bp
 from src.routes.profile import profile_bp
 from src.routes.whiteboard import whiteboard_bp
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 def create_app():
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 
-    # ---------------- Configuration ----------------
+    # Configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'studybuddy-secret-key-change-in-production')
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-    app.config['WTF_CSRF_ENABLED'] = False
+    app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for API
     app.config['JSON_SORT_KEYS'] = False
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
 
-    # ---------------- Security Headers ----------------
+    # Ensure database folder exists
+    os.makedirs(os.path.join(os.path.dirname(__file__), 'database'), exist_ok=True)
+    os.makedirs(os.path.join(os.path.dirname(__file__), 'uploads'), exist_ok=True)
+
+    # Initialize tables
+    with app.app_context():
+        db.create_all()
+
+    # Security headers
     @app.after_request
     def after_request(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -46,25 +47,17 @@ def create_app():
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    # ---------------- CORS ----------------
+    # Enable CORS for frontend
     CORS(app,
-         origins=[
-             "https://study-buddy-hackathon-main.vercel.app"
-         ],
+         origins=["https://study-buddy-hackathon-main.vercel.app"],
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    )
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-    # ---------------- Rate Limiter ----------------
-    limiter = Limiter(
-        key_func=get_remote_address,
-        app=app,
-        default_limits=["1000 per hour"],
-        storage_uri="memory://"
-    )
+    # Rate limiting
+    Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
 
-    # ---------------- Request Logging ----------------
+    # Request logging middleware
     @app.before_request
     def log_request_info():
         g.start_time = datetime.utcnow()
@@ -78,7 +71,7 @@ def create_app():
             app.logger.info(f"Response: {response.status_code} - Duration: {duration:.3f}s")
         return response
 
-    # ---------------- Error Handlers ----------------
+    # Error handlers
     @app.errorhandler(400)
     def bad_request(error):
         return jsonify({'error': 'Bad Request', 'message': 'The request could not be understood by the server'}), 400
@@ -113,7 +106,7 @@ def create_app():
     def handle_exception(e):
         return jsonify({'error': e.name, 'message': e.description}), e.code
 
-    # ---------------- Blueprints ----------------
+    # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_bp, url_prefix='/api')
     app.register_blueprint(room_bp, url_prefix='/api')
@@ -124,24 +117,7 @@ def create_app():
     app.register_blueprint(profile_bp, url_prefix='/api/profile')
     app.register_blueprint(whiteboard_bp, url_prefix='/api')
 
-    # ---------------- Database ----------------
-    database_dir = os.path.join(os.path.dirname(__file__), 'database')
-    os.makedirs(database_dir, exist_ok=True)
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(database_dir, 'app.db')}"
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 300}
-    db.init_app(app)
-
-    # ---------------- Uploads ----------------
-    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
-    os.makedirs(upload_dir, exist_ok=True)
-    app.config['UPLOAD_FOLDER'] = upload_dir
-
-    # ---------------- Initialize Database ----------------
-    with app.app_context():
-        db.create_all()
-
-    # ---------------- Health Check ----------------
+    # Health check
     @app.route('/api/health')
     def health_check():
         try:
@@ -152,30 +128,27 @@ def create_app():
             app.logger.error(f"Health check failed: {e}")
             return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
-    # ---------------- Catch-All Frontend Route ----------------
+    # Serve frontend static files
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
-        # Do not handle API routes here; let blueprints handle them
         if path.startswith('api/'):
-            return current_app.handle_http_exception(404)
+            return jsonify({'error': 'API route not found'}), 404
 
-        static_folder_path = app.static_folder
-        full_path = os.path.join(static_folder_path, path)
+        static_folder = app.static_folder
+        full_path = os.path.join(static_folder, path)
         if path != "" and os.path.exists(full_path):
-            return send_from_directory(static_folder_path, path)
+            return send_from_directory(static_folder, path)
 
-        index_path = os.path.join(static_folder_path, 'index.html')
+        index_path = os.path.join(static_folder, 'index.html')
         if os.path.exists(index_path):
-            return send_from_directory(static_folder_path, 'index.html')
+            return send_from_directory(static_folder, 'index.html')
 
         return "index.html not found", 404
 
     return app
 
-# ---------------- Run App ----------------
-app = create_app()
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+    app = create_app()
     app.run(host='0.0.0.0', port=5000, debug=True)
