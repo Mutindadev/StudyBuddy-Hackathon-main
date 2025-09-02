@@ -56,8 +56,10 @@ def create_app():
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-    # Rate limiter
-    Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
+   
+    # Create Limiter and attach to app
+    limiter = Limiter(key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
+    limiter.init_app(app)
 
     # Request logging
     @app.before_request
