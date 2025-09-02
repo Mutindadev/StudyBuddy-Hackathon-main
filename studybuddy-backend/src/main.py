@@ -132,24 +132,26 @@ def create_app():
             app.logger.error(f"Health check failed: {e}")
             return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
-    # Serve frontend
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
-        if path.startswith('api/'):
-            return jsonify({'error': 'API route not found'}), 404
+        # 1️⃣ Let Flask handle any registered route first
+        if path and any(path == rule.rule.lstrip('/') for rule in app.url_map.iter_rules()):
+            return app.full_dispatch_request()
 
+        # 2️⃣ Serve static files
         full_path = os.path.join(app.static_folder, path)
         if path and os.path.exists(full_path):
             return send_from_directory(app.static_folder, path)
 
+        # 3️⃣ SPA fallback (index.html)
         index_path = os.path.join(app.static_folder, 'index.html')
         if os.path.exists(index_path):
             return send_from_directory(app.static_folder, 'index.html')
 
+        # 4️⃣ Catch-all if nothing found
         return jsonify({'error': 'Frontend not found'}), 404
 
-    return app
 
 # Ensure module-level app for Gunicorn
 app = create_app()
