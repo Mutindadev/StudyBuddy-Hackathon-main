@@ -5,9 +5,7 @@ const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
 
@@ -18,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Unified API call helper
+  // Helper for API calls
   const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -33,18 +31,25 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(url, config);
 
-      // Handle non-JSON responses
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
+      // Handle 401 separately
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        setToken(null);
+        setUser(null);
+        throw new Error("Invalid token. Please log in again.");
+      }
+
+      // Try parsing JSON safely
+      let data = null;
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
         data = await response.json();
-      } else {
-        const text = await response.text();
-        throw new Error(text || "Invalid response from server");
       }
 
       if (!response.ok) {
-        throw new Error(data.error || "An error occurred");
+        throw new Error(
+          data?.error || `HTTP error! status: ${response.status}`
+        );
       }
 
       return data;
@@ -66,18 +71,12 @@ export const AuthProvider = ({ children }) => {
         const data = await apiCall("/api/auth/verify-token", {
           method: "POST",
         });
-
-        // Ensure user is an object
-        const verifiedUser = Array.isArray(data.user)
+        const verifiedUser = Array.isArray(data?.user)
           ? data.user[0]
           : data.user;
-
         setUser(verifiedUser);
       } catch (error) {
         console.error("Token verification failed:", error);
-        localStorage.removeItem("token");
-        setToken(null);
-        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -86,7 +85,6 @@ export const AuthProvider = ({ children }) => {
     verifyToken();
   }, [token]);
 
-  // Login
   const login = async (email, password) => {
     try {
       const data = await apiCall("/api/auth/login", {
@@ -94,7 +92,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
-      const loggedInUser = Array.isArray(data.user) ? data.user[0] : data.user;
+      const loggedInUser = Array.isArray(data?.user) ? data.user[0] : data.user;
       setToken(data.token);
       setUser(loggedInUser);
       localStorage.setItem("token", data.token);
@@ -106,7 +104,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Register
   const register = async (userData) => {
     try {
       const data = await apiCall("/api/auth/register", {
@@ -114,7 +111,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      const newUser = Array.isArray(data.user) ? data.user[0] : data.user;
+      const newUser = Array.isArray(data?.user) ? data.user[0] : data.user;
       setToken(data.token);
       setUser(newUser);
       localStorage.setItem("token", data.token);
@@ -126,7 +123,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -134,7 +130,6 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out successfully");
   };
 
-  // Update user object
   const updateUser = (userData) => {
     setUser((prev) => ({ ...prev, ...userData }));
   };
