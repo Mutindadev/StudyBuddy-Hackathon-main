@@ -54,6 +54,14 @@ def create_app():
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
+    # Handle preflight OPTIONS requests globally
+    @app.before_request
+    def handle_options_requests():
+        if request.method == 'OPTIONS':
+            response = app.make_response('')
+            response.status_code = 200
+            return response
+
     # Rate limiting
     Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
 
