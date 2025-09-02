@@ -16,9 +16,18 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Helper for API calls
+  // Helper for API calls (robust: normalizes urls, handles 401, JSON vs non-JSON, 204)
   const apiCall = async (endpoint, options = {}) => {
-    const url = `${API_BASE_URL}${endpoint}`;
+    // Normalize base URL (remove trailing slash)
+    const base = (API_BASE_URL || "").replace(/\/+$/, "");
+
+    // Normalize endpoint to always start with a single leading slash
+    let ep = String(endpoint || "");
+    if (!ep.startsWith("/")) ep = "/" + ep;
+
+    // Final URL: if no base provided, use endpoint as absolute path
+    const url = base ? `${base}${ep}` : ep;
+
     const config = {
       headers: {
         "Content-Type": "application/json",
@@ -31,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(url, config);
 
-      // Handle 401 separately
+      // 401: invalid/expired token -> clear auth and throw
       if (response.status === 401) {
         localStorage.removeItem("token");
         setToken(null);
@@ -39,20 +48,30 @@ export const AuthProvider = ({ children }) => {
         throw new Error("Invalid token. Please log in again.");
       }
 
-      // Try parsing JSON safely
-      let data = null;
-      const contentType = response.headers.get("content-type") || "";
+      // 204 No Content -> return null (caller should handle)
+      if (response.status === 204) return null;
+
+      // Check content-type to decide how to parse
+      const contentType = (
+        response.headers.get("content-type") || ""
+      ).toLowerCase();
+
       if (contentType.includes("application/json")) {
-        data = await response.json();
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            data?.error || `HTTP error! status: ${response.status}`
+          );
+        }
+        return data;
+      } else {
+        // Non-JSON response: read text and surface useful message or return text on OK
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(text || `HTTP error! status: ${response.status}`);
+        }
+        return text;
       }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      return data;
     } catch (error) {
       console.error("API call failed:", error);
       throw error;
@@ -71,7 +90,9 @@ export const AuthProvider = ({ children }) => {
         const data = await apiCall("/api/auth/verify-token", {
           method: "POST",
         });
+
         if (!data?.user) {
+          // invalid or empty response -> clear auth
           localStorage.removeItem("token");
           setToken(null);
           setUser(null);
@@ -84,12 +105,17 @@ export const AuthProvider = ({ children }) => {
         setUser(verifiedUser);
       } catch (error) {
         console.error("Token verification failed:", error);
+        // Ensure invalid token is removed and state cleared
+        localStorage.removeItem("token");
+        setToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
     verifyToken();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const login = async (email, password) => {
