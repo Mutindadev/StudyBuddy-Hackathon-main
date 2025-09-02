@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const data = await apiCall("/api/uth/verify-token", {
+        const data = await apiCall("/api/auth/verify-token", {
           method: "POST",
         });
         if (!data?.user) {
