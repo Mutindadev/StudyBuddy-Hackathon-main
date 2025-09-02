@@ -68,10 +68,17 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const data = await apiCall("/auth/verify-token", {
+        const data = await apiCall("/api/uth/verify-token", {
           method: "POST",
         });
-        const verifiedUser = Array.isArray(data?.user)
+        if (!data?.user) {
+          localStorage.removeItem("token");
+          setToken(null);
+          setUser(null);
+          throw new Error("Invalid token. Please log in again.");
+        }
+
+        const verifiedUser = Array.isArray(data.user)
           ? data.user[0]
           : data.user;
         setUser(verifiedUser);
