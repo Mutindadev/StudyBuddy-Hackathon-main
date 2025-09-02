@@ -47,10 +47,24 @@ def create_app():
 
     # CORS
     CORS(app,
-         origins=["https://study-buddy-hackathon-main.vercel.app"],
+         origins=["https://study-buddy-hackathon-main.vercel.app"
+                  "https://studybuddy-hackathon-main-production.up.railway.app"],
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+
+    # At the top after initializing CORS
+    @app.before_request
+    def handle_options_requests():
+        if request.method == 'OPTIONS':
+            resp = app.make_default_options_response()
+            headers = resp.headers
+
+            headers['Access-Control-Allow-Origin'] = 'https://study-buddy-hackathon-main.vercel.app'
+            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            headers['Access-Control-Allow-Credentials'] = 'true'
+            return resp
 
     # Rate limiter
     Limiter(app, key_func=get_remote_address, default_limits=["1000 per hour"], storage_uri="memory://")
