@@ -54,7 +54,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const data = await apiCall("/auth/verify-token", { method: "POST" });
+        const data = await apiCall("/api/auth/verify-token", {
+          method: "POST",
+        });
         // Ensure user is an object
         const verifiedUser = Array.isArray(data.user)
           ? data.user[0]
@@ -75,7 +77,7 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = async (email, password) => {
     try {
-      const data = await apiCall("/auth/login", {
+      const data = await apiCall("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -98,7 +100,7 @@ export const AuthProvider = ({ children }) => {
   // Register function
   const register = async (userData) => {
     try {
-      const data = await apiCall("/auth/register", {
+      const data = await apiCall("/api/auth/register", {
         method: "POST",
         body: JSON.stringify(userData),
       });
